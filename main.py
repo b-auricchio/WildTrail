@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from models.target import Target, get_jacobian_F
 from models.drone import get_jacobian_H, Drone, pos2z, z2pos
-from filters.kalman import ExtendedKalmanFilter
+from filters.kalman import ExtendedKalmanFilter, UnscentedKalmanFilter
 from utils.plotting import animate
 
 # np.random.seed(9430)
@@ -21,16 +21,16 @@ dt = 1
 track = [target.update_states(dt, Q_model) for _ in range(N)]
 
 # get sensor measurements
-drone = Drone(np.array([0, 0, 10]), np.array([1, 0, 0.5]))
+drone = Drone(np.array([0, 10, 10]), np.array([1, 0, 0.5]))
 
 Q = Q_model # kalman filter process noise 3x larger than actual process noise
-kf = ExtendedKalmanFilter(x0, P0, Q_model, R)
+kf = UnscentedKalmanFilter(x0, P0, Q_model, R, (1, 2, 0))
 
 for t in track:
     # drone.velocity+= np.random.multivariate_normal([0,0,0], np.diag([0.1, 0.1, 0.1]))
     z = drone.sense(t, R.diagonal())
-    kf.predict(target.transition, get_jacobian_F, dt)
-    kf.update(z, drone.get_pos(), pos2z, get_jacobian_H)
+    kf.predict(target.transition, dt)
+    kf.update(z, drone.get_pos(), pos2z)
     drone.update(dt)
 
 kf.logger.to_numpy()

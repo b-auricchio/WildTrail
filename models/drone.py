@@ -11,7 +11,7 @@ def z2pos(drone_pos, z): # z = [pitch, bearing]
 def pos2z(drone_pos, state): # target_pos = [x, y]
     """Returns the measurement vector given the drone's position and the target position"""
     range = np.sqrt((state[0] - drone_pos[0])**2 + (state[1] - drone_pos[1])**2)
-    print(range)
+    
     bearing = np.arctan2(state[1] - drone_pos[1], state[0] - drone_pos[0])
     pitch = np.arctan2(drone_pos[2], range)
 
@@ -49,17 +49,19 @@ class Drone:
     
 def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     """Calculate the jacobian of the measurement function at the previous target position and drone position"""
-    x, y = state[0], state[1]
+    x, y = state[:2]
     x_d, y_d, z_d = drone_pos
 
+    # eliminate division by zero
+    if x-x_d < 1e-2:
+        x += 1e-2
+    
+    if y-y_d < 1e-2:
+        y += 1e-2
+
+
     denom1 = np.sqrt((x-x_d)**2 + (y-y_d)**2) * (z_d**2+(x-x_d)**2 + (y-y_d)**2)
-    if denom1 == 0:
-        denom1 = 1e-10
-
     denom2 = (x-x_d)**2 + (y-y_d)**2
-    if denom2 == 0:
-        denom2 = 1e-10
-
 
     return np.array([[-z_d*(x-x_d)/denom1, -z_d*(y-y_d)/denom1, 0, 0], [(y_d-y)/denom2, (x-x_d)/denom2, 0, 0]])
     
