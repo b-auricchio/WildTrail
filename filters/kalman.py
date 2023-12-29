@@ -20,18 +20,18 @@ class ExtendedKalmanFilter:
         self._I = np.eye(len(x0))
         self.y = 1e6
 
-    def predict(self, fx, jFfun, dt):
+    def predict(self, fx, jFx, dt):
         """Predicts the next state of the system
         f: transition function
         jFfun: jacobian of the transition function
         dt: time step
         """
         x = self.x
-        jF = jFfun(x, dt)
+        jF = jFx(x, dt)
         self.x = fx(x, dt) # posterior -> prior prediction step
         self.P = jF @ self.P @ jF.T + self.Q # prior covariance prediction step
 
-    def update(self, z, drone_pos, hx, jHfun):
+    def update(self, z, drone_pos, hx, jHx):
         """Updates the state of the system with the given measurement
         z: measurement
         drone_pos: position of the drone
@@ -39,7 +39,7 @@ class ExtendedKalmanFilter:
         jHfun: jacobian of the measurement function
         """
 
-        jH = jHfun(self.x_post, drone_pos) # get jacobian H
+        jH = jHx(self.x_post, drone_pos) # get jacobian H
         self.y = z - hx(drone_pos, self.x) # pass position to measurement function
 
         S = jH @ self.P @ jH.T + self.R # transformation of covariance to measurement space + measurement noise

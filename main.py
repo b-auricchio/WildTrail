@@ -6,7 +6,7 @@ from models.drone import get_jacobian_H, Drone, pos2z, z2pos
 from filters.kalman import ExtendedKalmanFilter, UnscentedKalmanFilter
 from utils.plotting import animate
 
-# np.random.seed(9430)
+# np.random.seed(98)
 
 N = 100 # number of time steps
 Q_model = np.diag([0, 0, 0.3, 0.6])**2 # process noise
@@ -24,7 +24,8 @@ track = [target.update_states(dt, Q_model) for _ in range(N)]
 drone = Drone(np.array([0, 10, 10]), np.array([1, 0, 0.5]))
 
 Q = Q_model # kalman filter process noise 3x larger than actual process noise
-kf = UnscentedKalmanFilter(x0, P0, Q_model, R, (1, 2, 0))
+abk = (1e-3, 2, 0)
+kf = UnscentedKalmanFilter(x0, P0, Q_model, R, abk)
 
 for t in track:
     # drone.velocity+= np.random.multivariate_normal([0,0,0], np.diag([0.1, 0.1, 0.1]))
