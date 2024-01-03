@@ -77,6 +77,7 @@ class UnscentedKalmanFilter:
         P0: initial covariance
         Q: process noise covariance
         R: measurement noise covariance
+        abk = (alpha, beta, kappa) sigma point parameters
         """
         self.logger = KalmanLogger()
         self.x = x0
