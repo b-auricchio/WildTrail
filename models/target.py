@@ -1,8 +1,22 @@
-
 import numpy as np
 
+def get_jacobian_F(state, dt):
+    """Calculate the symbolic jacobian of the transition function at the previous target position"""
+    a, v = state[2], state[3]
+    jF = np.eye(4)
+    jF[0,2] = -dt*v*np.sin(a)
+    jF[0,3] = dt*np.cos(a)
+    jF[1,2] = dt*v*np.cos(a)
+    jF[1,3] = dt*np.sin(a)
+    return jF
+
 class Target:
-    """Target class for the target tracking problem"""
+
+    """
+    target.py
+    ====================================
+    Handles target functionality for the target tracking problem
+    """
     def __init__(self, x0): # x0 = [x, y, alpha, velocity]'
         """Initialises the target at a given initial state"""
         self.state = x0
@@ -39,16 +53,6 @@ class Target:
         """Updates the velocity of the target"""
         self.state[3] = v
 
-    def update_angle(self, a):
-        """Updates the angle of the target"""
+    def update_bearing(self, a):
+        """Updates the bearing of the target"""
         self.state[2] = a
-
-def get_jacobian_F(state, dt):
-    """Calculate the symbolic jacobian of the transition function at the previous target position"""
-    a, v = state[2], state[3]
-    jF = np.eye(4)
-    jF[0,2] = -dt*v*np.sin(a)
-    jF[0,3] = dt*np.cos(a)
-    jF[1,2] = dt*v*np.cos(a)
-    jF[1,3] = dt*np.sin(a)
-    return jF

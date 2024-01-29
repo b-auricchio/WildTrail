@@ -1,5 +1,12 @@
 import numpy as np
 
+"""
+drone.py 
+====================================
+Handles drone functionality for the target tracking problem
+
+"""
+
 def z2pos(drone_pos, z): # z = [pitch, bearing]
     """Returns the target position given the drone's position and a measurement vector"""
     range = drone_pos[2] / np.tan(z[0])
@@ -19,21 +26,13 @@ def pos2z(drone_pos, state): # target_pos = [x, y]
 
 class Drone:
     """Drone class for the target tracking problem"""
-    def __init__(self, start_pos, velocity=[0, 0, 0]):
-        """Initialises the drone at a given position"""
-        self.pos = np.array(start_pos, dtype=np.float64)
-        self.velocity = np.array(velocity, dtype=np.float64)
+    def __init__(self, x0): # x0 = [x, y, alpha, velocity]'
+        """Initialises the target at a given initial state"""
+        self.state = x0
 
-    def move_to(self, pos):
-        """Moves the drone to a given position"""
-        self.pos = pos
-
-    def update(self, dt):
-        """Updates the drone's position"""
-        self.pos = self.pos + self.velocity*dt
 
     def sense(self, target_pos, noise): # target_pos = [x, y]
-        x, y, z = self.pos
+        x, y, z = self.state
         """Sense the target and return a non-linear noisy measurement vector [pitch, bearing]^T"""
         z = pos2z([x, y, z], target_pos) # get measurement vector
         pitch, bearing = z[0], z[1]
@@ -43,9 +42,13 @@ class Drone:
 
         return np.array([pitch, bearing]).T # return non-linear measurement vector
     
+    def set_pos(self, pos):
+        """Set the drone's position"""
+        self.state[:3] = pos
+
     def get_pos(self):
         """Returns the current position of the drone"""
-        return self.pos
+        return self.state[:3]
     
 def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     """Calculate the jacobian of the measurement function at the previous target position and drone position"""
@@ -53,10 +56,10 @@ def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     x_d, y_d, z_d = drone_pos
 
     # eliminate division by zero
-    if x-x_d < 1e-2:
+    if np.abs(x-x_d) < 1e-2:
         x += 1e-2
     
-    if y-y_d < 1e-2:
+    if np.abs(y-y_d) < 1e-2:
         y += 1e-2
 
 

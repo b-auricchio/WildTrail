@@ -4,7 +4,7 @@ from scipy.linalg import cholesky
 
 class ExtendedKalmanFilter:
     """Extended Kalman Filter implementation"""
-    def __init__(self, x0, P0, Q, R):
+    def __init__(self, x0, P0, Q, R, hx, jHx, fx, jFx):
         """Initialises the EKF with the given parameters. h is the non-linear measurement function.
         x0: initial state
         P0: initial covariance
@@ -19,28 +19,33 @@ class ExtendedKalmanFilter:
         self.x_post = x0
         self._I = np.eye(len(x0))
         self.y = 1e6
+        self.hx = hx
+        self.jHx = jHx
+        self.fx = fx
+        self.jFx = jFx
 
-    def predict(self, fx, jFx, dt):
+    def predict(self, dt):
         """Predicts the next state of the system
         f: transition function
         jFfun: jacobian of the transition function
         dt: time step
         """
         x = self.x
-        jF = jFx(x, dt)
-        self.x = fx(x, dt) # posterior -> prior prediction step
+        jF = self.jFx(x, dt)
+        self.x = self.fx(x, dt) # posterior -> prior prediction step
         self.P = jF @ self.P @ jF.T + self.Q # prior covariance prediction step
 
-    def update(self, z, drone_pos, hx, jHx):
+    def update(self, z, drone_pos):
         """Updates the state of the system with the given measurement
         z: measurement
         drone_pos: position of the drone
         h: measurement function
         jHfun: jacobian of the measurement function
         """
+        self.logger.drone_pos.append(np.array(drone_pos))
 
-        jH = jHx(self.x_post, drone_pos) # get jacobian H
-        self.y = z - hx(drone_pos, self.x) # pass position to measurement function
+        jH = self.jHx(self.x_post, drone_pos) # get jacobian H
+        self.y = z - self.hx(drone_pos, self.x) # pass position to measurement function
 
         S = jH @ self.P @ jH.T + self.R # transformation of covariance to measurement space + measurement noise
         K = self.P @ jH.T @ np.linalg.inv(S) # kalman gain
@@ -52,12 +57,11 @@ class ExtendedKalmanFilter:
 
         self.x_post = self.x # store posterior state for next iteration
 
-        # print(f'y: {self.y}')
         self.logger.cov.append(self.P)
         self.logger.x.append(self.x)
         self.logger.z.append(z)
         self.logger.y.append(np.linalg.norm(self.y))
-        self.logger.drone_pos.append(drone_pos)
+        
         self.logger.range.append(np.linalg.norm(self.x[:2] - drone_pos[:2]))
 
     def get_state(self):
