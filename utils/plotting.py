@@ -1,6 +1,10 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import numpy as np
+import sys
+sys.path.append('../')
+
+from models.path_planning import evalue_trace
 
 def plot_covariance(x, P, fc='g', alpha=0.2, std=1, ax=None):
     """Plot covariance ellipse at point x with covariance matrix P.
@@ -63,32 +67,41 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True):
                 if i % (N/20) == 0:
                     plot_covariance(x[i][0:2], covs[i][0:2,0:2], fc='g', alpha=0.2, std=1, ax=ax)
     
-def plot_stats(logger, track, N):
-    plt.figure()
-    plt.subplot(4, 1, 1)
-    plt.title('Std. deviation of state variables')
-    plt.xlim([0, N])
-    plt.plot(np.sqrt(logger.cov[:,0,0]), 'r-', label='$\sigma_{x}$')
 
-    plt.subplot(4, 1, 2)
-    plt.title('Drone altitude')
-    plt.ylabel('z [m]')
-    plt.xlim([0, N])
-    plt.plot(logger.drone_pos[:,2], 'g--')
+def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
+    fig = plt.figure(figsize=(12,6))
 
-    plt.subplot(4, 1, 3)
-    plt.title('Positional error')
-    plt.ylabel('error [m]')
+    fig.subplots_adjust(left=0.07, bottom=0.08, right=0.95, top=0.95, wspace=0.15, hspace=0.35)
+    plt.gcf().canvas.mpl_connect('key_release_event',
+        lambda event: [exit(0) if event.key == 'escape' else None])
+
+    ax_kalman = fig.add_subplot(1, 2, 1)
+    plot_logger(ax_kalman, N, logger, track, z2pos, N, show_cov=show_cov, show_meas=show_meas)
+    ax_kalman.set_title('Kalman filter')
+
+    ax_cov = fig.add_subplot(3, 2, 2)
+
+    ax_cov.set_title('Eigenvalue trace of covariance matrix')
+    ax_cov.set_xlim([0, N])
+    ax_cov.plot([evalue_trace(cov) for cov in logger.cov], 'r-', label='$V$')
+
+
+    ax_cov.legend()
+
+    ax_alt = fig.add_subplot(3, 2, 4)
+    ax_alt.set_title('Drone altitude')
+    ax_alt.set_ylabel('z [m]')
+
+    ax_alt.set_xlim([0, N])
+    ax_alt.plot(logger.drone_pos[:,2], 'g--')
+
+    ax_error = fig.add_subplot(3, 2, 6)
+    ax_error.set_title('Positional error')
+    ax_error.set_ylabel('error [m]')
+    ax_error.set_xlabel('time step')
     track = np.array(track)
     error = np.array([np.linalg.norm(x-t) for x, t in zip(logger.x[:,:2], track[:,:2])])
-    plt.plot(error, 'r-')
-
-    plt.subplot(4, 1, 2)
-    plt.title('Range to target')
-    plt.ylabel('range [m]')
-
-    plt.xlim([0, N])
-    plt.plot(logger.range, 'r-')
+    ax_error.plot(error, 'r-')
 
 
     plt.show()
