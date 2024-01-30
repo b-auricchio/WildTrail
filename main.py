@@ -9,10 +9,10 @@ from filters.kalman import ExtendedKalmanFilter
 from utils.plotting import plot_logger, plot_stats
 from models.path_planning import DiscreteInputPathPlanner
 
-np.random.seed(64)
+np.random.seed(436)
 
 dt = 1
-N = 1000 # number of time steps
+N = 600 # number of time steps
 
 # generate drone object 
 drone = Drone(np.array([-100,-100, 20])) #[x,y,z]'
@@ -36,10 +36,15 @@ us = []
 
 kf = ExtendedKalmanFilter(x0, P0, Q, R, pos2z, get_jacobian_H, target.transition, get_jacobian_F)
 
+node_tree = []
 for t in track:
-    umin = pp.get_best_input(1, 1, drone.get_pos(), kf, dt)
-    drone.set_pos(drone.get_pos() + umin)
+    current_pos = drone.get_pos()
+    u_min, node_min = pp.get_best_input(5, 5, current_pos, kf, dt)
 
+    node_tree.append((node_min.get_positional_path()))
+    us.append(u_min)
+    drone.set_pos(current_pos + u_min)
+    
     # predict / update kalman filter
     z = drone.sense(t, R.diagonal())
     kf.predict(dt)
@@ -47,12 +52,13 @@ for t in track:
 
 kf.logger.to_numpy()
 
-###### ANIMATION ######
-# for t in range(1, len(track)):
-#     plot_logger(plt.gca(), t, kf.logger, track, z2pos, N, show_cov=True, show_meas=True)
-#     plt.pause(0.01)
+
+# ###### PLOTS ######
+# plot_stats(kf.logger, track, z2pos, N)
 # plt.show()
 
-###### PLOTS ######
-plot_stats(kf.logger, track, z2pos, N)
+###### ANIMATION ######
+for t in range(1, len(track)):
+    plot_logger(plt.gca(), t, kf.logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=node_tree)
+    plt.pause(0.01)
 plt.show()

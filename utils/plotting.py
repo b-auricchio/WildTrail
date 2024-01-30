@@ -26,7 +26,7 @@ def plot_covariance(x, P, fc='g', alpha=0.2, std=1, ax=None):
     return ell
 
 
-def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True):
+def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None):
     plt.gca()
     track = np.array(track)[:t]
     drone_pos = logger.drone_pos[:t]
@@ -66,6 +66,10 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True):
         for i in range(t):
                 if i % (N/20) == 0:
                     plot_covariance(x[i][0:2], covs[i][0:2,0:2], fc='g', alpha=0.2, std=1, ax=ax)
+
+    if node_tree is not None:
+        plt.plot(node_tree[t][:,0], node_tree[t][:,1], 'r')
+        plt.plot(node_tree[t][-1,0], node_tree[t][-1,1], 'r*')
     
 
 def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
