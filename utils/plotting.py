@@ -68,8 +68,11 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, n
                     plot_covariance(x[i][0:2], covs[i][0:2,0:2], fc='g', alpha=0.2, std=1, ax=ax)
 
     if node_tree is not None:
-        plt.plot(node_tree[t][:,0], node_tree[t][:,1], 'r')
-        plt.plot(node_tree[t][-1,0], node_tree[t][-1,1], 'r*')
+        for node in node_tree[t][1:]:
+            plt.plot(node[:,0], node[:,1], 'g')
+            plt.plot(node[-1,0], node[-1,1], 'go', markersize=3, markeredgewidth=2, alpha=0.5)
+
+        plt.plot(node_tree[t][0][:,0], node_tree[t][0][:,1], 'r')
     
 
 def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
@@ -109,3 +112,13 @@ def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
 
 
     plt.show()
+
+def plot_paths(ax, t, node_tree):
+    plt.cla()
+    plt.gcf().canvas.mpl_connect('key_release_event',
+    lambda event: [exit(0) if event.key == 'escape' else None])
+    for node in node_tree[t][1:]:
+        ax.plot(node[:,0], node[:,1], node[:,2], 'g')
+        ax.plot(node[-1,0], node[-1,1], node[-1,2], 'ro', markersize=3, markeredgewidth=2, alpha=0.5)
+
+    ax.plot(node_tree[t][0][:,0], node_tree[t][0][:,1], node_tree[t][0][:,2], 'r')

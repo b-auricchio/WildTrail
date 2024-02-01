@@ -44,10 +44,10 @@ class Node:
 
 class DiscreteInputPathPlanner:
     """Path planner with discrete set of control inputs"""
-    def __init__(self, min_range=0, altitude_bounds=[10, 200]):
+    def __init__(self, dt, min_range=0, altitude_bounds=[10, 200]):
         self.min_range = min_range
         self.altitude_bounds = altitude_bounds
-
+        self.dt = dt
             # u array
         self.uarray = np.array([[0, 0, 0], 
                     [0, 0, 1], [0, 0, -1], [0, 1, 0], 
@@ -55,9 +55,9 @@ class DiscreteInputPathPlanner:
                     [0, 1, 1], [0, 1, -1], [1, 1, 0], 
                     [1, -1, 0], [1, 0, 1], [-1, 0, 1],
                     [0, -1, 1], [0, -1, -1], [-1, 1, 0], 
-                    [-1, -1, 0], [1, 0, -1], [-1, 0, -1]]) # possible control inputs
+                    [-1, -1, 0], [1, 0, -1], [-1, 0, -1]])*dt # possible control inputs
         
-    def estimate_step_forward(self, x, P, drone_pos, u, kf, dt): # output: x, P, u
+    def estimate_step_forward(self, x, P, drone_pos, u, kf): # output: x, P, u
         """Estimate the state and covariance of the drone after dt seconds
         given the current state x, covariance P and control input u"""
 
@@ -68,7 +68,7 @@ class DiscreteInputPathPlanner:
         Q = kf.Q
         R = kf.R
         
-        jF = jFfun(x, dt)
+        jF = jFfun(x, self.dt)
         jH = jHfun(x, drone_pos)
 
         # step state forward
@@ -82,13 +82,13 @@ class DiscreteInputPathPlanner:
 
         return x, P, u
     
-    def get_best_nodes(self, num, kf, dt, parent_nodes=[None]):
+    def get_best_nodes(self, num, kf, parent_nodes=[None]):
         """Generate a tree of possible states and covariances given a discrete set of control inputs"""
 
         nodes = []
         for parent in parent_nodes:
             # generate tree of possible states, sort by cost function and return the num best nodes
-            tree = [(self.estimate_step_forward(parent.x, parent.P, parent.position, u, kf, dt)) for u in self.uarray]
+            tree = [(self.estimate_step_forward(parent.x, parent.P, parent.position, u, kf)) for u in self.uarray]
 
             for leaf in (tree):
                 nodes.append(Node(leaf[2], evalue_trace(leaf[1]), leaf[0], leaf[1], parent, position=parent.position+leaf[2]))
@@ -99,21 +99,22 @@ class DiscreteInputPathPlanner:
 
         return nodes
     
-    def generate_nodes(self, num, timesteps, drone_pos, kf, dt):
+    def generate_nodes(self, num, timesteps, drone_pos, kf):
         """Generate a list of nodes given a discrete set of control inputs"""
+        
         nodes = np.empty((timesteps, num), dtype=Node)
         parents = [Node(None, None, kf.get_state(), kf.get_covariance(), None, drone_pos)]
         
         for t in range(timesteps):
-            nodes[t] = self.get_best_nodes(num, kf, dt, parents)
+            nodes[t] = self.get_best_nodes(num, kf, parents)
             parents = nodes[t]
 
         return nodes
     
-    def get_best_input(self, num, timesteps, drone_pos, kf, dt):
-        nodes = self.generate_nodes(num, timesteps, drone_pos, kf, dt)
+    def get_best_input(self, num, timesteps, drone_pos, kf):
+        nodes = self.generate_nodes(num, timesteps, drone_pos, kf)
         """Get the best input from the list of nodes"""
-        umin = nodes[-1, 0].get_control_path()[-1]
-        best_node = nodes[-1, 0]
+        last_nodes = nodes[-1]
+        umin = last_nodes[0].get_control_path()[-1]
 
-        return umin, best_node
+        return umin, last_nodes
