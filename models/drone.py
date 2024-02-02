@@ -32,7 +32,7 @@ class Drone:
 
 
     def sense(self, target_pos, noise): # target_pos = [x, y]
-        x, y, z = self.state
+        x, y, z = self.state[:3]
         """Sense the target and return a non-linear noisy measurement vector [pitch, bearing]^T"""
         z = pos2z([x, y, z], target_pos) # get measurement vector
         pitch, bearing = z[0], z[1]
@@ -42,13 +42,31 @@ class Drone:
 
         return np.array([pitch, bearing]).T # return non-linear measurement vector
     
-    def set_pos(self, pos):
-        """Set the drone's position"""
-        self.state[:3] = pos
-
     def get_pos(self):
-        """Returns the current position of the drone"""
+        """Returns the drone's position"""
         return self.state[:3]
+    
+    def transition(self, x, u, dt):
+        A = np.array([[1, 0, 0, dt, 0, 0],
+                    [0, 1, 0, 0, dt, 0],
+                    [0, 0, 1, 0, 0, dt],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 1]])
+
+        # control input matrix
+
+        B = np.array([[0, 0, 0],
+                      [0, 0, 0],
+                      [0, 0, 0],
+                     [dt, 0, 0],
+                    [0, dt, 0],
+                    [0, 0, dt]])
+
+        x = A@x + B@u
+
+        return x
+
     
 def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     """Calculate the jacobian of the measurement function at the previous target position and drone position"""
