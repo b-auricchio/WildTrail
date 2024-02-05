@@ -73,6 +73,10 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, n
             plt.plot(node[-1,0], node[-1,1], 'go', markersize=3, markeredgewidth=2, alpha=0.5)
 
         plt.plot(node_tree[t][0][:,0], node_tree[t][0][:,1], 'r')
+
+    plt.axis("equal")
+    plt.grid(True)
+
     
 
 def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
