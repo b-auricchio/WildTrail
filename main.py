@@ -6,24 +6,26 @@ from models.target import get_jacobian_F
 from models.target import Target, get_jacobian_F
 from models.drone import get_jacobian_H, Drone, pos2z, z2pos
 from filters.kalman import ExtendedKalmanFilter
-from utils.plotting import plot_logger, plot_stats
+from utils.plotting import plot_logger, plot_stats, plot_paths
 from models.path_planning import PathPlanner
 import time
 
 start_time = time.time()
 
+# np.random.seed(933)
+
 dt = 1 # time step
 N = 100 # number of time steps
 
-# generate drone object 
+# generate drone object
 drone = Drone(np.array([-100,-100, 80, 0, 0, 0])) #[x,y,z, vx, vy, vz]'
 
 # generate target object
-x0 = np.array([0, 0, np.random.uniform(0,2*np.pi), np.random.uniform(1,2)]) # initial state [x, y, alpha, velocity]'
+x0 = np.array([0, 0, np.random.uniform(0,2*np.pi), 1*np.random.uniform(1,2)]) # initial state [x, y, alpha, velocity]'
 target = Target(x0) # x,y,a = 0, v = 1
 
 # get track
-Q_model = np.diag([0, 0, 0, 0])**2 # process noise [x, y, alpha, velocity]'
+Q_model = np.diag([0., 0., 0.2, 0.2])**2 # process noise [x, y, alpha, velocity]'
 track = [target.update_states(dt, Q_model) for _ in range(N)]
 
 # generate kalman filter object
@@ -41,31 +43,39 @@ def transition_function(state, u, dt):
     return state
 
 # generate path planner object
-pp = PathPlanner(dt, drone.transition)
-us = []
+pp = PathPlanner(dt, drone.transition, v_bounds=[3, 0.5], alt_bounds=[75, 120], r1_weight=1.,  r2_weight=0.5)
 
 node_tree = []
-for t in track:
-    current_state = drone.state
-    u_min, nodes = pp.get_best_input(10, 10, current_state, kf)
-    print(nodes[0]) # print best node data
 
-    node_tree.append([node.get_state_path() for node in nodes])
-    us.append(u_min)
-    drone.state = drone.transition(current_state, u_min, dt)
-    
-    # predict / update kalman filter
-    z = drone.sense(t, R.diagonal())
-    kf.predict(dt)
-    kf.update(z, drone.get_pos())
+t = 0
+while t < N:
+    u_min, nodes = pp.get_best_input(1, 10, 5, drone.state, kf)
+    print(nodes[0]) # print best node dataset
+
+    for u in u_min:
+        node_tree.append([node.get_state_path() for node in nodes])
+
+        drone.state = drone.transition(drone.state, u, dt)
+        
+        # predict / update kalman filter
+        z = drone.sense(track[t], R.diagonal())
+        kf.predict(dt)
+        kf.update(z, drone.get_pos())
+
+        print(f't: {t}')
+
+        t += 1
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
 kf.logger.to_numpy()
 
+
+
 ###### ANIMATION ######
 ax1 = plt.figure().add_subplot()
 # ax2 = plt.figure().add_subplot(projection='3d')
+
 for t in range(1, len(track)):
     plot_logger(ax1, t, kf.logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=node_tree)
     # plot_paths(ax2, t, node_tree)
