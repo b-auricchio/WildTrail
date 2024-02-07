@@ -144,7 +144,7 @@ class PathPlanner:
                 # Apply soft constraints to the control inputs
                 if (np.linalg.norm(state[3:]) > self.v_bounds[0] or np.linalg.norm(state[3:]) < self.v_bounds[1]
                     or state[2] < self.alt_bounds[0] or state[2] > self.alt_bounds[1]):
-                    v *= 5
+                    v *= 1e6
                 
                 nodes.append(Node(u, v, x, P, parent, state=state))
 

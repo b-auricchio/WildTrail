@@ -26,7 +26,7 @@ def plot_covariance(x, P, fc='g', alpha=0.2, std=1, ax=None):
     return ell
 
 
-def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None):
+def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None, clear=True):
     plt.gca()
     track = np.array(track)[:t]
     drone_pos = logger.drone_pos[:t]
@@ -36,7 +36,8 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, n
     z_pos = np.array([z2pos(pos, m) for m, pos in zip(z, drone_pos)])[:t]
     covs = logger.cov[:t]
 
-    plt.cla()
+    if clear:
+        plt.cla()
     plt.gcf().canvas.mpl_connect('key_release_event',
         lambda event: [exit(0) if event.key == 'escape' else None])
     
@@ -79,7 +80,9 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, n
 
     
 
-def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
+def plot_stats(kfs, z2pos, N, show_cov=True, show_meas=True):
+    loggers = [kf.logger for kf in kfs]
+
     fig = plt.figure(figsize=(12,6))
 
     fig.subplots_adjust(left=0.07, bottom=0.08, right=0.95, top=0.95, wspace=0.15, hspace=0.35)
@@ -87,33 +90,33 @@ def plot_stats(logger, track, z2pos, N, show_cov=True, show_meas=True):
         lambda event: [exit(0) if event.key == 'escape' else None])
 
     ax_kalman = fig.add_subplot(1, 2, 1)
-    plot_logger(ax_kalman, N, logger, track, z2pos, N, show_cov=show_cov, show_meas=show_meas)
+    for kf in kfs:
+        plot_logger(ax_kalman, N, kf.logger, kf.track, z2pos, N, show_cov=show_cov, show_meas=show_meas, clear=False)
+    
     ax_kalman.set_title('Kalman filter')
 
     ax_cov = fig.add_subplot(3, 2, 2)
-
     ax_cov.set_title('Eigenvalue trace of covariance matrix')
     ax_cov.set_xlim([0, N])
-    ax_cov.plot([evalue_trace(cov) for cov in logger.cov], 'r-', label='$V$')
+    for logger in loggers:
+        ax_cov.plot([evalue_trace(cov) for cov in logger.cov])
 
-
-    ax_cov.legend()
+    # ax_cov.legend()
 
     ax_alt = fig.add_subplot(3, 2, 4)
     ax_alt.set_title('Drone altitude')
     ax_alt.set_ylabel('z [m]')
-
     ax_alt.set_xlim([0, N])
-    ax_alt.plot(logger.drone_pos[:,2], 'g--')
+    ax_alt.plot(loggers[0].drone_pos[:,2])
 
     ax_error = fig.add_subplot(3, 2, 6)
     ax_error.set_title('Positional error')
     ax_error.set_ylabel('error [m]')
     ax_error.set_xlabel('time step')
-    track = np.array(track)
-    error = np.array([np.linalg.norm(x-t) for x, t in zip(logger.x[:,:2], track[:,:2])])
-    ax_error.plot(error, 'r-')
-
+    for kf in kfs:
+        track = np.array(kf.track)
+        error = np.array([np.linalg.norm(x-t) for x, t in zip(kf.logger.x[:,:2], track[:,:2])])
+        ax_error.plot(error)
 
     plt.show()
 

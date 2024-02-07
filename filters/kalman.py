@@ -4,7 +4,7 @@ from scipy.linalg import cholesky
 
 class ExtendedKalmanFilter:
     """Extended Kalman Filter implementation"""
-    def __init__(self, x0, P0, Q, R, hx, jHx, fx, jFx):
+    def __init__(self, x0, P0, Q, R, hx, jHx, fx, jFx, track, target):
         """Initialises the EKF with the given parameters. h is the non-linear measurement function.
         x0: initial state
         P0: initial covariance
@@ -23,6 +23,9 @@ class ExtendedKalmanFilter:
         self.jHx = jHx
         self.fx = fx
         self.jFx = jFx
+
+        self.track = track
+        self.target = target
 
     def predict(self, dt):
         """Predicts the next state of the system
