@@ -1,0 +1,13 @@
+
+/gifs/
+/data/
+.venv
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ipynb
+*.pyc
+*.svg
+
+/__pycache__/

@@ -20,15 +20,21 @@ def pos2z(drone_pos, state): # target_pos = [x, y]
     range = np.sqrt((state[0] - drone_pos[0])**2 + (state[1] - drone_pos[1])**2)
     
     bearing = np.arctan2(state[1] - drone_pos[1], state[0] - drone_pos[0])
-    pitch = np.arctan2(drone_pos[2], range)
+    # pitch = np.arctan2(drone_pos[2], range)
+    pitch = np.arcsin(drone_pos[2]/(range**2 + drone_pos[2]**2)**0.5)
+
+    # handle case when drone is directly above target
+    if np.isnan(pitch):
+        pitch = np.pi/2
 
     return np.array([pitch, bearing])
 
 class Drone:
     """Drone class for the target tracking problem"""
-    def __init__(self, x0): # x0 = [x, y, alpha, velocity]'
+    def __init__(self, x0, drag): # x0 = [x, y, alpha, velocity]'
         """Initialises the target at a given initial state"""
         self.state = x0
+        self.drag = drag
 
 
     def sense(self, target_pos, noise): # target_pos = [x, y]
@@ -48,41 +54,41 @@ class Drone:
     
     def transition(self, x, u, dt):
         A = np.array([[1, 0, 0, dt, 0, 0],
-                    [0, 1, 0, 0, dt, 0],
-                    [0, 0, 1, 0, 0, dt],
-                    [0, 0, 0, 1, 0, 0],
-                    [0, 0, 0, 0, 1, 0],
-                    [0, 0, 0, 0, 0, 1]])
+                      [0, 1, 0, 0, dt, 0],
+                      [0, 0, 1, 0, 0, dt],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 1, 0],
+                      [0, 0, 0, 0, 0, 1]])
 
         # control input matrix
 
         B = np.array([[0, 0, 0],
                       [0, 0, 0],
                       [0, 0, 0],
-                     [dt, 0, 0],
-                    [0, dt, 0],
-                    [0, 0, dt]])
+                      [dt, 0, 0],
+                      [0, dt, 0],
+                      [0, 0, dt]])
 
-        x = A@x + B@u
+        x = A@x + B@u - self.drag*np.array([0, 0, 0, x[3], x[4], x[5]])
 
         return x
 
-    
+_threshold = 1e-6
 def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     """Calculate the jacobian of the measurement function at the previous target position and drone position"""
     x, y = state[:2]
     x_d, y_d, z_d = drone_pos
 
-    # eliminate division by zero
-    if np.abs(x-x_d) < 1e-2:
-        x += 1e-2
-    
-    if np.abs(y-y_d) < 1e-2:
-        y += 1e-2
-
-
     denom1 = np.sqrt((x-x_d)**2 + (y-y_d)**2) * (z_d**2+(x-x_d)**2 + (y-y_d)**2)
     denom2 = (x-x_d)**2 + (y-y_d)**2
+    # denom1 = np.sqrt(z_d**2+(x-x_d)**2+(y-y_d)**2)**3*np.sqrt(-z_d**2/(z_d**2+(x-x_d)**2 + (y-y_d)**2) + 1)
 
-    return np.array([[-z_d*(x-x_d)/denom1, -z_d*(y-y_d)/denom1, 0, 0], [(y_d-y)/denom2, (x-x_d)/denom2, 0, 0]])
+    e = [-z_d*(x-x_d)/denom1, -z_d*(y-y_d)/denom1, (y_d-y)/denom2, (x-x_d)/denom2]
+    # e = [z_d*(x_d-x)/denom1, z_d*(y_d-y)/denom1, (y_d-y)/denom2, (x-x_d)/denom2]
+
+    for i in range(len(e)):
+        if np.isnan(e[i]):
+            e[i] = 0
+    
+    return np.array([[e[0], e[1], 0, 0], [e[2], e[3], 0, 0]])
     

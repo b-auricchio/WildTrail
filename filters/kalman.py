@@ -38,13 +38,16 @@ class ExtendedKalmanFilter:
         self.x = self.fx(x, dt) # posterior -> prior prediction step
         self.P = jF @ self.P @ jF.T + self.Q # prior covariance prediction step
 
-    def update(self, z, drone_pos):
+    def update(self, z, drone_state):
         """Updates the state of the system with the given measurement
         z: measurement
         drone_pos: position of the drone
         h: measurement function
         jHfun: jacobian of the measurement function
         """
+
+        drone_pos = drone_state[:3]
+        self.logger.drone_state.append(np.array(drone_state))
         self.logger.drone_pos.append(np.array(drone_pos))
 
         jH = self.jHx(self.x_post, drone_pos) # get jacobian H
@@ -57,6 +60,7 @@ class ExtendedKalmanFilter:
 
         I_KH = self._I - np.dot(K, jH)
         self.P = np.dot(I_KH, self.P).dot(I_KH.T) + np.dot(K, self.R).dot(K.T) # posterior covariance update step - joseph form
+        # self.P = (self._I - K @ jH)@self.P
 
         self.x_post = self.x # store posterior state for next iteration
 
@@ -66,6 +70,7 @@ class ExtendedKalmanFilter:
         self.logger.y.append(np.linalg.norm(self.y))
         
         self.logger.range.append(np.linalg.norm(self.x[:2] - drone_pos[:2]))
+
 
     def get_state(self):
         """Returns the current state of the system"""
@@ -143,7 +148,7 @@ class UnscentedKalmanFilter:
         self.logger.x.append(self.x)
         self.logger.z.append(z)
         self.logger.y.append(np.linalg.norm(self.y))
-        self.logger.drone_pos.append(drone_pos)
+        self.logger.drone_state.append(drone_pos)
         self.logger.range.append(np.linalg.norm(self.x[:2] - drone_pos[:2]))
 
     def __get_weights(self, n, abk):

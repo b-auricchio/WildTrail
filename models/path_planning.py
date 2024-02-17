@@ -26,7 +26,15 @@ def reward(P, u_array, weight_R1=1, weight_R2=0.5):
     return weight_R1 * evalue_trace(P) + weight_R2 * energy(u_array)
 
 class Node:
-    """Node class for RRT-like path planning"""
+    """Node class for RRT-like path planning
+    
+    u = control input
+    value = value of the node
+    x = kalman state
+    P = kalman covariance
+    parent = parent node
+    state = drone state
+    """
     def __init__(self, u, value, x, P, parent, state):
         self.u = u
         self.value = value
@@ -36,7 +44,9 @@ class Node:
         self.parent = parent
 
     def get_control_path(self):
-        """Get the path from the root to this node"""
+        """Get the path from the root to this node
+        Returns a list of control inputs
+        """
         if self.u is None:
             return []
         else:
@@ -51,7 +61,9 @@ class Node:
         return path
     
     def get_state_path(self):
-        """Get the path from the root to this node"""
+        """Get the path from the root to this node
+        Returns a list of states
+        """
         path = [self.state]
         node = self
 
@@ -84,15 +96,17 @@ class PathPlanner:
         self.r1_weight = r1_weight
         self.r2_weight = r2_weight
 
-        uarray = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], 
+        uarray = np.array([[1, 0, 0], 
+                    [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], 
                     [1, -1, 0], [1, 1, 0], [-1, 1, 0], [-1, -1, 0],
                     [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1],
                     [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
                     [1, 1, 1], [1, 1, -1], [1, -1, 1], [-1, 1, 1],
-                    [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]]) 
+                    [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])*dt*5
 
         norm = np.linalg.norm(uarray, axis=1, keepdims=True)
         self.uarray = np.vstack((uarray / norm, np.array([0,0,0])))
+        print(len(self.uarray))
 
         
     def estimate_step_forward(self, x, P, kf, drone_state, u): # output: x, P, u
@@ -126,7 +140,7 @@ class PathPlanner:
     def get_best_nodes(self, num, kf, parent_nodes=[None]):
         """Generate a tree of possible states and covariances given a discrete set of control inputs"""
         nodes = []
-        # self.uarray = np.array([random_thrust_vector() for _ in range(30)])
+        # self.uarray = np.array([random_thrust_vector() for _ in range(100)])*2
         for parent in parent_nodes:
             # generate tree of possible states, sort by cost function and return the num best nodes
             tree = [(self.estimate_step_forward(parent.x, parent.P, kf, parent.state, u)) for u in self.uarray]
