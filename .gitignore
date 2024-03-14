@@ -9,5 +9,7 @@
 *.ipynb
 *.pyc
 *.svg
+*.pdf
+*.cypython-310.pyc
 
 /__pycache__/

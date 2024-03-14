@@ -21,10 +21,6 @@ def energy(u_array):
     """Calculate the total energy from series of control inputs"""
     return np.sum(np.linalg.norm(u_array, axis=1))
 
-def reward(P, u_array, weight_R1=1, weight_R2=0.5):
-    """Calculate the reward for a give node"""
-    return weight_R1 * evalue_trace(P) + weight_R2 * energy(u_array)
-
 class Node:
     """Node class for RRT-like path planning
     
@@ -106,7 +102,18 @@ class PathPlanner:
 
         norm = np.linalg.norm(uarray, axis=1, keepdims=True)
         self.uarray = np.vstack((uarray / norm, np.array([0,0,0])))
-        print(len(self.uarray))
+        # print(len(self.uarray))
+
+    def reward(self, P, u_array, state, weight_R1=1, weight_R2=0.5):
+        """Calculate the reward for a give node"""
+
+        v = weight_R1 * evalue_trace(P) + weight_R2 * energy(u_array)
+        if (np.linalg.norm(state[3:]) > self.v_bounds[0] or np.linalg.norm(state[3:]) < self.v_bounds[1]
+                    or state[2] < self.alt_bounds[0] or state[2] > self.alt_bounds[1]):
+                    # print('out of bounds')
+                    v *= 1e6
+
+        return v
 
         
     def estimate_step_forward(self, x, P, kf, drone_state, u): # output: x, P, u
@@ -153,13 +160,8 @@ class PathPlanner:
                 u_path.append(u)
 
                 state = leaf[3]
-                v = reward(P, u_path, self.r1_weight, self.r2_weight)
+                v = self.reward(P, u_path, state, self.r1_weight, self.r2_weight) + 0*parent.value
 
-                # Apply soft constraints to the control inputs
-                if (np.linalg.norm(state[3:]) > self.v_bounds[0] or np.linalg.norm(state[3:]) < self.v_bounds[1]
-                    or state[2] < self.alt_bounds[0] or state[2] > self.alt_bounds[1]):
-                    v *= 1e6
-                
                 nodes.append(Node(u, v, x, P, parent, state=state))
 
         # sort nodes by cost function and take the num best nodes
@@ -172,7 +174,7 @@ class PathPlanner:
         """Generate a list of nodes given a discrete set of control inputs"""
         
         nodes = np.empty((timesteps, num), dtype=Node)
-        parents = [Node(None, None, kf.get_state(), kf.get_covariance(), None, drone_state)]
+        parents = [Node(None, 1e6, kf.get_state(), kf.get_covariance(), None, drone_state)]
         
         for t in range(timesteps):
             nodes[t] = self.get_best_nodes(num, kf, parents)
@@ -190,3 +192,35 @@ class PathPlanner:
             umin = [umin[0]]
 
         return umin, last_nodes
+
+
+class Baseline:
+    def __init__(self, kp, ki, kd):
+        self.ki = ki
+        self.kp = kp
+        self.kd = kd
+        self.integral = np.array([0., 0.])
+        self.prev_error = np.array([0., 0.])
+
+    def get_best_input(self, drone_state, kf):
+        animal_pos = kf.x[:2]
+        drone_pos = drone_state[:2]
+
+        # get error
+        error = animal_pos - drone_pos
+
+        self.integral += error
+        derivative = error - self.prev_error
+        self.prev_error = error
+
+        # get control input
+        ux = self.kp*error[0] + self.ki*self.integral[0] + self.kd*derivative[0]
+        uy = self.kp*error[1] + self.ki*self.integral[1] + self.kd*derivative[1]
+
+        u = np.array([ux, uy, 0])
+        umag = np.linalg.norm(u)
+        uang = np.arctan2(u[1], u[0])
+
+        u = np.clip(umag, 0, 5)*np.array([np.cos(uang), np.sin(uang), 0])
+        return [u]
+

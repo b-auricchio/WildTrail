@@ -34,6 +34,12 @@ class KalmanLogger():
                            'drone_vel': np.linalg.norm(self.drone_state[:,3:], axis=1)})
         
         df.to_csv(path, index=False)
+
+    def get_rms_error(self, track) -> float:
+        self.to_numpy()
+        track = np.array(track)
+        errors = [np.linalg.norm(x-t) for x, t in zip(self.x[:,:2], track[:,:2])]
+        return np.sqrt(sum(errors)**2) / len(errors)
         
 
     def __str__(self) -> str:

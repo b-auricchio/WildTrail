@@ -26,7 +26,7 @@ def plot_covariance(x, P, fc='g', alpha=0.2, std=1, ax=None):
     return ell
 
 
-def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None, clear=True):
+def plot(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None, clear=True):
     plt.gca()
     track = np.array(track)[:t]
     drone_pos = logger.drone_pos[:t]
@@ -41,19 +41,19 @@ def plot_logger(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, n
     plt.gcf().canvas.mpl_connect('key_release_event',
         lambda event: [exit(0) if event.key == 'escape' else None])
     
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
+    ax.set_xlabel('$x$ [m]')
+    ax.set_ylabel('$y$ [m]')
 
     if show_meas:
-        ax.plot(z_pos[:,0], z_pos[:,1], label='measurements', color='r', marker='.', markersize=1, linestyle='none')
+        ax.plot(z_pos[:,0], z_pos[:,1], label='Measurements', color='r', marker='.', markersize=1, linestyle='none')
 
-    ax.plot(track[:,0], track[:,1],  'k--', label='target track')
-    ax.plot(x[:,0], x[:,1],  'b-', label='kalman filter')
-    ax.plot(x[-1,0], x[-1,1], 'bo', label='kalman_pos', markersize=6)
-    ax.plot(x[-1,0], x[-1,1], 'ko', label='true_pos', markersize=3, markeredgewidth=2, alpha=0.5)
+    ax.plot(track[:,0], track[:,1],  'k--', label='Animal track')
+    ax.plot(x[:,0], x[:,1],  'b-', label='Kalman filter')
+    ax.plot(x[-1,0], x[-1,1], 'bo', markersize=6)
+    ax.plot(x[-1,0], x[-1,1], 'ko', markersize=3, markeredgewidth=2, alpha=0.5)
 
-    ax.plot(drone_pos[:,0], drone_pos[:,1], label='drone track', linestyle='dotted', color='k')
-    ax.plot(drone_pos[-1,0], drone_pos[-1,1], 'g+', label='drone pos', markersize=10)
+    ax.plot(drone_pos[:,0], drone_pos[:,1], label='Drone track', linestyle='dotted', color='k')
+    ax.plot(drone_pos[-1,0], drone_pos[-1,1], 'g+', label='Final drone position', markersize=10)
 
     for i in range(t):
                 if i % (N/20) == 0:
