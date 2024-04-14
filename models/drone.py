@@ -20,7 +20,6 @@ def pos2z(drone_pos, state): # target_pos = [x, y]
     range = np.sqrt((state[0] - drone_pos[0])**2 + (state[1] - drone_pos[1])**2)
     
     bearing = np.arctan2(state[1] - drone_pos[1], state[0] - drone_pos[0])
-    # pitch = np.arctan2(drone_pos[2], range)
     pitch = np.arcsin(drone_pos[2]/(range**2 + drone_pos[2]**2)**0.5)
 
     # handle case when drone is directly above target
@@ -36,15 +35,15 @@ class Drone:
         self.state = x0
         self.drag = drag
 
-
     def sense(self, target_pos, noise): # target_pos = [x, y]
-        x, y, z = self.state[:3]
         """Sense the target and return a non-linear noisy measurement vector [pitch, bearing]^T"""
-        z = pos2z([x, y, z], target_pos) # get measurement vector
+        z = pos2z(self.state[:3], target_pos) # get measurement vector
         pitch, bearing = z[0], z[1]
 
-        pitch += np.random.normal(0, noise[0]) # add noise to range
-        bearing += np.random.normal(0, noise[1]) # add noise to bearing
+        dz = [np.random.normal(0, noise[0]), np.random.normal(0, noise[1])] # generate noise vector
+        
+        pitch += dz[0] # add noise to pitch
+        bearing += dz[1] # add noise to bearing
 
         return np.array([pitch, bearing]).T # return non-linear measurement vector
     
@@ -53,6 +52,8 @@ class Drone:
         return self.state[:3]
     
     def transition(self, x, u, dt):
+        """Applies the transition function to the state"""
+
         A = np.array([[1, 0, 0, dt, 0, 0],
                       [0, 1, 0, 0, dt, 0],
                       [0, 0, 1, 0, 0, dt],
@@ -73,7 +74,6 @@ class Drone:
 
         return x
 
-_threshold = 1e-6
 def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
     """Calculate the jacobian of the measurement function at the previous target position and drone position"""
     x, y = state[:2]
@@ -81,14 +81,14 @@ def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
 
     denom1 = np.sqrt((x-x_d)**2 + (y-y_d)**2) * (z_d**2+(x-x_d)**2 + (y-y_d)**2)
     denom2 = (x-x_d)**2 + (y-y_d)**2
-    # denom1 = np.sqrt(z_d**2+(x-x_d)**2+(y-y_d)**2)**3*np.sqrt(-z_d**2/(z_d**2+(x-x_d)**2 + (y-y_d)**2) + 1)
 
     e = [-z_d*(x-x_d)/denom1, -z_d*(y-y_d)/denom1, (y_d-y)/denom2, (x-x_d)/denom2]
-    # e = [z_d*(x_d-x)/denom1, z_d*(y_d-y)/denom1, (y_d-y)/denom2, (x-x_d)/denom2]
 
     for i in range(len(e)):
         if np.isnan(e[i]):
             e[i] = 0
     
-    return np.array([[e[0], e[1], 0, 0], [e[2], e[3], 0, 0]])
+    jacobian = np.array([[e[0], e[1], 0, 0], [e[2], e[3], 0, 0]])
+
+    return jacobian
     

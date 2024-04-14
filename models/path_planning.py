@@ -1,15 +1,31 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-def random_thrust_vector(min_mag=0.5, max_mag=2):
-    # generate random thrust vector
-    mag = np.random.uniform(min_mag, max_mag)
-    theta = np.random.uniform(0, 2*np.pi)
-    phi = np.random.uniform(0, np.pi)
-    x = np.sin(phi)*np.cos(theta)
-    y = np.sin(phi)*np.sin(theta)
-    z = np.cos(phi)
+class CylinderConstraint:
+    """CylinderConstraint class for RRT-like path planning
 
-    return mag*np.array([x, y, z])
+    position = [x, y]
+    radius = radius of the cylinder
+    height = height of the cylinder.  Default: 1e6.
+    """
+
+    def __init__(self, position, radius, height=1e6): # position = [x, y]
+        self.position = np.array(position)
+        self.radius = radius
+        self.height = height
+
+    def plot(self, ax):
+        """Plot the cylinder"""
+        circle = plt.Circle(self.position[:2], self.radius, color='r', alpha=0.5)
+        ax.add_artist(circle)
+
+    def violated(self, state):
+        """Check if the drone is within the cylinder.
+        
+        Returns True if the drone is within the cylinder, False otherwise.
+        """
+        pos = state[:3]
+        return (np.linalg.norm(pos[:2] - self.position[:2]) < self.radius and pos[2] < self.height)
 
 # Cost functions
 def evalue_trace(P):
@@ -20,6 +36,34 @@ def evalue_trace(P):
 def energy(u_array):
     """Calculate the total energy from series of control inputs"""
     return np.sum(np.linalg.norm(u_array, axis=1))
+
+class ConstraintHandler:
+    """ConstraintHandler class for RRT-like path planning.
+    ----------------------------------------------
+    Inputs:
+
+    constraints = list of Constraint objects
+    """
+
+    def __init__(self, constraints):
+        self.constraints = constraints # list of Constraint objects
+
+    def check_constraints(self, state): # returns True if any constraints are violated
+        for constraint in (self.constraints):
+            if constraint.violated(state):
+                return True
+        return False
+    
+    def reward(self, P, u_array, state, v_bounds, alt_bounds, weight_R1=1, weight_R2=0.5):
+        """Calculate the reward for a given node"""
+
+        v = weight_R1 * evalue_trace(P) + weight_R2 * energy(u_array)
+        if (np.linalg.norm(state[3:]) > v_bounds[0] or np.linalg.norm(state[3:]) < v_bounds[1]
+                    or state[2] < alt_bounds[0] or state[2] > alt_bounds[1]) or self.check_constraints(state):
+                    # print('out of bonds')
+            v *= 1e6
+
+        return v
 
 class Node:
     """Node class for RRT-like path planning
@@ -83,7 +127,7 @@ class PathPlanner:
                     
     """
 
-    def __init__(self, dt, transition_function, v_bounds=5, alt_bounds=[75, 120], r1_weight=2,  r2_weight=0.5):
+    def __init__(self, dt, transition_function, constraints=[], v_bounds=5, alt_bounds=[75, 120], r1_weight=2,  r2_weight=0.5):
         self.dt = dt
         self.transition_function = transition_function
 
@@ -98,24 +142,13 @@ class PathPlanner:
                     [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1],
                     [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
                     [1, 1, 1], [1, 1, -1], [1, -1, 1], [-1, 1, 1],
-                    [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])*dt*5
+                    [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])*dt*10
 
         norm = np.linalg.norm(uarray, axis=1, keepdims=True)
         self.uarray = np.vstack((uarray / norm, np.array([0,0,0])))
-        # print(len(self.uarray))
 
-    def reward(self, P, u_array, state, weight_R1=1, weight_R2=0.5):
-        """Calculate the reward for a give node"""
+        self.constaint_handler = ConstraintHandler(constraints)
 
-        v = weight_R1 * evalue_trace(P) + weight_R2 * energy(u_array)
-        if (np.linalg.norm(state[3:]) > self.v_bounds[0] or np.linalg.norm(state[3:]) < self.v_bounds[1]
-                    or state[2] < self.alt_bounds[0] or state[2] > self.alt_bounds[1]):
-                    # print('out of bounds')
-                    v *= 1e6
-
-        return v
-
-        
     def estimate_step_forward(self, x, P, kf, drone_state, u): # output: x, P, u
         """Estimate the state and covariance of the drone after dt seconds
         given the current state x, covariance P, control input u, and drone state transition function x_{t+1} = f(x_{t}, u, dt)
@@ -147,7 +180,6 @@ class PathPlanner:
     def get_best_nodes(self, num, kf, parent_nodes=[None]):
         """Generate a tree of possible states and covariances given a discrete set of control inputs"""
         nodes = []
-        # self.uarray = np.array([random_thrust_vector() for _ in range(100)])*2
         for parent in parent_nodes:
             # generate tree of possible states, sort by cost function and return the num best nodes
             tree = [(self.estimate_step_forward(parent.x, parent.P, kf, parent.state, u)) for u in self.uarray]
@@ -160,7 +192,7 @@ class PathPlanner:
                 u_path.append(u)
 
                 state = leaf[3]
-                v = self.reward(P, u_path, state, self.r1_weight, self.r2_weight) + 0*parent.value
+                v = self.constaint_handler.reward(P, u_path, state, self.v_bounds, self.alt_bounds, self.r1_weight, self.r2_weight) + 1*parent.value
 
                 nodes.append(Node(u, v, x, P, parent, state=state))
 
@@ -182,19 +214,25 @@ class PathPlanner:
 
         return nodes
     
-    def get_best_input(self, num_inputs, num_nodes, timesteps, drone_state, kf):
+    def get_best_input(self, num_nodes, timesteps, drone_state, kf):
         nodes = self.generate_nodes(num_nodes, timesteps, drone_state, kf)
         """Get the best input from the list of nodes"""
         last_nodes = nodes[-1]
-        umin = last_nodes[0].get_control_path()[-1*num_inputs:]
+        umin = last_nodes[0].get_control_path()[-1]
+        cost = last_nodes[0].value
 
-        if len(umin) == 1:
-            umin = [umin[0]]
-
-        return umin, last_nodes
+        return umin, cost
 
 
 class Baseline:
+    """Baseline class for the target tracking problem
+    ----------------------------------------------
+    Inputs:
+        kp: proportional gain
+        ki: integral gain
+        kd: derivative gain
+    """
+
     def __init__(self, kp, ki, kd):
         self.ki = ki
         self.kp = kp
@@ -221,6 +259,6 @@ class Baseline:
         umag = np.linalg.norm(u)
         uang = np.arctan2(u[1], u[0])
 
-        u = np.clip(umag, 0, 5)*np.array([np.cos(uang), np.sin(uang), 0])
+        u = np.clip(umag, 0, 5)*np.array([np.cos(uang), np.sin(uang), 0]) # saturate control input
         return [u]
 

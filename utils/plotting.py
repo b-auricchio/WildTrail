@@ -26,7 +26,7 @@ def plot_covariance(x, P, fc='g', alpha=0.2, std=1, ax=None):
     return ell
 
 
-def plot(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None, clear=True):
+def plot(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tree=None, clear=True, constraints=[]):
     plt.gca()
     track = np.array(track)[:t]
     drone_pos = logger.drone_pos[:t]
@@ -75,5 +75,9 @@ def plot(ax, t, logger, track, z2pos, N, show_cov=True, show_meas=True, node_tre
 
         plt.plot(node_tree[t][0][:,0], node_tree[t][0][:,1], 'r')
 
+    for constraint in constraints:
+        constraint.plot(ax)
+
+    plt.legend()
     plt.axis("equal")
     plt.grid(True)
