@@ -1,14 +1,5 @@
 import numpy as np
-
-def get_jacobian_F(state, dt):
-    """Calculate the symbolic jacobian of the transition function at the previous target position"""
-    a, v = state[2], state[3]
-    jF = np.eye(4)
-    jF[0,2] = -dt*v*np.sin(a)
-    jF[0,3] = dt*np.cos(a)
-    jF[1,2] = dt*v*np.cos(a)
-    jF[1,3] = dt*np.sin(a)
-    return jF
+import casadi as ca
 
 class Target:
 

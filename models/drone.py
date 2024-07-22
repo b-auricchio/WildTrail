@@ -1,4 +1,5 @@
 import numpy as np
+import casadi as ca
 
 """
 drone.py 
@@ -30,8 +31,8 @@ def pos2z(drone_pos, state): # target_pos = [x, y]
 
 class Drone:
     """Drone class for the target tracking problem"""
-    def __init__(self, x0, drag): # x0 = [x, y, alpha, velocity]'
-        """Initialises the target at a given initial state"""
+    def __init__(self, x0, drag): # x0 = [x, y, z, vx, vy, vz]
+        """Initialises the drone at a given initial state"""
         self.state = x0
         self.drag = drag
 
@@ -73,22 +74,34 @@ class Drone:
         x = A@x + B@u - self.drag*np.array([0, 0, 0, x[3], x[4], x[5]])
 
         return x
-
-def get_jacobian_H(state, drone_pos): # drone_pos = [x, y, z], prev_pos = [x, y]
-    """Calculate the jacobian of the measurement function at the previous target position and drone position"""
-    x, y = state[:2]
-    x_d, y_d, z_d = drone_pos
-
-    denom1 = np.sqrt((x-x_d)**2 + (y-y_d)**2) * (z_d**2+(x-x_d)**2 + (y-y_d)**2)
-    denom2 = (x-x_d)**2 + (y-y_d)**2
-
-    e = [-z_d*(x-x_d)/denom1, -z_d*(y-y_d)/denom1, (y_d-y)/denom2, (x-x_d)/denom2]
-
-    for i in range(len(e)):
-        if np.isnan(e[i]):
-            e[i] = 0
     
-    jacobian = np.array([[e[0], e[1], 0, 0], [e[2], e[3], 0, 0]])
+    def transition_casadi(self, x, u, dt):
+        """Applies the transition function to the state
+        
+        returns casadi.MX object
+        """
 
-    return jacobian
+        A = ca.MX(np.array([[1, 0, 0, dt, 0, 0],
+                      [0, 1, 0, 0, dt, 0],
+                      [0, 0, 1, 0, 0, dt],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 1, 0],
+                      [0, 0, 0, 0, 0, 1]]))
+
+        # control input matrix
+
+        B = ca.MX(np.array([[0, 0, 0],
+                      [0, 0, 0],
+                      [0, 0, 0],
+                      [dt, 0, 0],
+                      [0, dt, 0],
+                      [0, 0, dt]]))
+        
+        zero = ca.MX(0)
+        d = ca.vertcat(zero, zero, zero, x[3], x[4], x[5])
+
+        x = A@x + B@u - self.drag*d
+
+        return x
+
     

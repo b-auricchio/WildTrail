@@ -13,3 +13,5 @@
 *.cypython-310.pyc
 
 /__pycache__/
+
+.idea

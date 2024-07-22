@@ -25,10 +25,10 @@ class KalmanLogger():
 
         self.range = np.array(self.range)
 
-    def to_csv(self, path: str, track) -> None:
+    def to_csv(self, path: str, track, costs) -> None:
         self.to_numpy()
         track = np.array(track)
-        df = pd.DataFrame({'cost': [evalue_trace(cov) for cov in self.cov], 
+        df = pd.DataFrame({'cost': costs, 
                            'error' : [np.linalg.norm(x-t) for x, t in zip(self.x[:,:2], track[:,:2])],
                            'drone_alt': self.drone_state[:,2],
                            'drone_vel': np.linalg.norm(self.drone_state[:,3:], axis=1)})
