@@ -1,5 +1,4 @@
 import numpy as np
-from utils.logger import KalmanLogger
 
 def normalise_angle(angle): # normalise angle to be between pi and -pi
     return (angle + np.pi) % (2 * np.pi) - np.pi
@@ -13,7 +12,6 @@ class ExtendedKalmanFilter:
         Q: process noise covariance
         R: measurement noise covariance
         """
-        self.logger = KalmanLogger()
         self.x = x0
         self.P = P0
         self.Q = Q
@@ -49,8 +47,6 @@ class ExtendedKalmanFilter:
         """
 
         drone_pos = drone_state[:3]
-        self.logger.drone_state.append(np.array(drone_state))
-        self.logger.drone_pos.append(np.array(drone_pos))
 
         h = self.hx(drone_pos, self.x_post) # get measurement
         jH = self.jHx(self.x_post, drone_pos) # get jacobian H
@@ -68,14 +64,6 @@ class ExtendedKalmanFilter:
         self.P = np.dot(I_KH, self.P).dot(I_KH.T) + np.dot(K, self.R).dot(K.T) # posterior covariance update step - joseph form
 
         self.x_post = self.x # store posterior state for next iteration
-
-        self.logger.cov.append(self.P)
-        self.logger.x.append(self.x)
-        self.logger.z.append(z)
-        self.logger.y.append(np.linalg.norm(self.y))
-        
-        self.logger.range.append(np.linalg.norm(self.x[:2] - drone_pos[:2]))
-
 
     def get_state(self):
         """Returns the current state of the system"""

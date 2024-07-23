@@ -2,19 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import casadi as ca
 
-# Cost functions
-def evalue_trace(P):
-    """Calculate the trace of the covariance matrix P"""
-    return ca.trace(P) 
-
-def energy(u_array):
-    """Calculate the total energy from series of control inputs"""
-    return np.sum(np.linalg.norm(u_array, axis=1))
-
 class MPC:
-    def __init__(self, N:int, dt:float, drone_transition:callable, kf:object, jHx:callable, jFx:callable):
+    def __init__(self, N:int, dt:float, drone_transition:callable, kf:object, jHx:callable, jFx:callable, r=1):
         """
-        
+        Model Predictive Controller class
+
         Parameters
         ----------
         N : int - Number of time steps
@@ -22,10 +14,14 @@ class MPC:
         drone_transition : callable - Transition function of the drone
         kf : object - Kalman filter object
         """
+        self.warm_X = None
+        self.warm_U = None
+
         self.dt = dt
         self.f = drone_transition
         self.N = N
         self.kf = kf
+        self.r = r # control penalty
 
         self.jHx = jHx  
         self.jFx = jFx
@@ -35,7 +31,7 @@ class MPC:
         self.X = self.opti.variable(6, N+1)
         self.U = self.opti.variable(3, N+1)
 
-        self.x = self.opti.parameter(4,1) # kalmal filter state
+        self.x = self.opti.parameter(4,1) # kalman filter state
         self.P = self.opti.parameter(4,4) # kalman filter covariance
 
 
@@ -47,28 +43,25 @@ class MPC:
         for k in range(N):
             self.opti.subject_to(self.X[:,k+1] == drone_transition(self.X[:,k], self.U[:,k], dt))
 
+        # apply cylinder constraint around a point
+        # radius = 100
+        # x_a, y_a = 0, 0
+        # not_in_cylinder = lambda x, y: (x - x_a)**2 + (y - y_a)**2 >= radius**2
+
+        # for k in range(self.N):
+        #     current_x, current_y = self.X[0,k+1], self.X[1,k+1]
+        #     self.opti.subject_to(not_in_cylinder(current_x, current_y))
+
         # apply state constraints
         for k in range(N+1):
-            self.opti.subject_to(self.X[2,k] > 0) # altitude constraint 
-            self.opti.subject_to(self.X[2,k] < 120) # altitude constraint
-            self.opti.subject_to(self.X[3,k]**2 + self.X[4,k]**2 + self.X[5,k]**2 < 12**2) # velocity constraint
+            self.opti.subject_to(self.X[2,k] >= 75) # altitude constraint 
+            self.opti.subject_to(self.X[2,k] <= 120) # altitude constraint
+            self.opti.subject_to(self.X[3,k]**2 + self.X[4,k]**2 + self.X[5,k]**2 < 10**2) # velocity constraint
 
         # define input constraints
-        self.opti.subject_to(self.opti.bounded(-100, self.U, 100)) # input constraints
-
-        def J(self, x0, P0, X, U):
-            """Cost function"""
-            x = x0
-            P = P0
-
-            cost = 0
-            for k in range(self.N):
-                x, P = self.estimate_step_forward(x, P, X[:,k], U[:,k]) 
-                cost += evalue_trace(P) + ca.dot(U[:,k], U[:,k])
-
-            return cost
+        self.opti.subject_to(self.opti.bounded(-5, self.U, 5)) # input constraints
         
-        self.opti.minimize(J(self, self.x, self.P, self.X, self.U))
+        self.opti.minimize(self.J(self, self.x, self.P, self.X, self.U, self.r))
 
     def __call__(self, drone_x0):
         """Solve the optimization problem"""
@@ -76,11 +69,15 @@ class MPC:
         self.opti.set_value(self.x, self.kf.x)
         self.opti.set_value(self.P, self.kf.P)
 
+        if self.warm_X is not None:
+            self.opti.set_initial(self.X, self.warm_X)
+            self.opti.set_initial(self.U, self.warm_U)
+
         # tell the opti container we want to use IPOPT to optimize, and define settings for the solver
         opts = {
             'ipopt.print_level':0, 
             'print_time':0,
-            'ipopt.tol': 1e-6,
+            'ipopt.tol': 1e-6
         } # silence!
         self.opti.solver('ipopt', opts)
 
@@ -88,7 +85,11 @@ class MPC:
         sol = self.opti.solve()
         u_sol = sol.value(self.U)
 
-        # get optimised objective value
+
+        # update warm start
+        self.warm_X = np.concatenate((sol.value(self.X)[:,1:], sol.value(self.X)[:,-1].reshape(-1,1)), axis=1)
+        self.warm_U = np.concatenate((sol.value(self.U)[:,1:], sol.value(self.U)[:,-1].reshape(-1,1)), axis=1)
+
         cost = sol.value(self.opti.f)
         return u_sol[:,0], cost
 
@@ -120,3 +121,22 @@ class MPC:
         new_P = (ca.MX.eye(4) - K@jH)@P_prior
 
         return new_x, new_P
+
+    @staticmethod
+    def J(self, x0, P0, X, U, r):
+            """Cost function"""
+            x = x0
+            P = P0
+
+            cost = 0
+            for k in range(self.N):
+                x, P = self.estimate_step_forward(x, P, X[:,k], U[:,k]) 
+                cost += 10 * ca.sqrt(P[0,0]**2 + P[0,1]**2 + P[1,1]**2)  # using frobenius norm of P
+                cost += + r * ca.dot(U[:,k], U[:,k])
+                # add regularization term to reward smooth control inputs
+                cost += 0.1 * ca.mtimes([(U[:, k] - U[:, k-1]).T, (U[:, k] - U[:, k-1])])
+            return cost
+    
+    def get_predictions(self):
+        """Get the predictions of the optimisation problem"""
+        return self.opti.value(self.X), self.opti.value(self.U)
