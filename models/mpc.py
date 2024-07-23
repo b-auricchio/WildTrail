@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import casadi as ca
 
 class MPC:
-    def __init__(self, N:int, dt:float, drone_transition:callable, kf:object, jHx:callable, jFx:callable, r=1):
+    def __init__(self, N:int, dt:float, drone_transition:callable, kf:object, jHx:callable, jFx:callable, r=1, constraints=None):
         """
         Model Predictive Controller class
 
@@ -43,15 +43,6 @@ class MPC:
         for k in range(N):
             self.opti.subject_to(self.X[:,k+1] == drone_transition(self.X[:,k], self.U[:,k], dt))
 
-        # apply cylinder constraint around a point
-        # radius = 100
-        # x_a, y_a = 0, 0
-        # not_in_cylinder = lambda x, y: (x - x_a)**2 + (y - y_a)**2 >= radius**2
-
-        # for k in range(self.N):
-        #     current_x, current_y = self.X[0,k+1], self.X[1,k+1]
-        #     self.opti.subject_to(not_in_cylinder(current_x, current_y))
-
         # apply state constraints
         for k in range(N+1):
             self.opti.subject_to(self.X[2,k] >= 75) # altitude constraint 
@@ -60,8 +51,21 @@ class MPC:
 
         # define input constraints
         self.opti.subject_to(self.opti.bounded(-5, self.U, 5)) # input constraints
+
+        # apply custom constraints
+        if constraints is not None:
+            for constraint in constraints:
+                constraint.apply(self.opti, self.X)
         
         self.opti.minimize(self.J(self, self.x, self.P, self.X, self.U, self.r))
+
+        # tell the opti container we want to use IPOPT to optimize, and define settings for the solver
+        opts = {
+            'ipopt.print_level':0, 
+            'print_time':0,
+            'ipopt.tol': 1e-6
+        } # silence!
+        self.opti.solver('ipopt', opts)
 
     def __call__(self, drone_x0):
         """Solve the optimization problem"""
@@ -72,14 +76,6 @@ class MPC:
         if self.warm_X is not None:
             self.opti.set_initial(self.X, self.warm_X)
             self.opti.set_initial(self.U, self.warm_U)
-
-        # tell the opti container we want to use IPOPT to optimize, and define settings for the solver
-        opts = {
-            'ipopt.print_level':0, 
-            'print_time':0,
-            'ipopt.tol': 1e-6
-        } # silence!
-        self.opti.solver('ipopt', opts)
 
         # solve the optimization problem
         sol = self.opti.solve()
@@ -132,7 +128,7 @@ class MPC:
             for k in range(self.N):
                 x, P = self.estimate_step_forward(x, P, X[:,k], U[:,k]) 
                 cost += 10 * ca.sqrt(P[0,0]**2 + P[0,1]**2 + P[1,1]**2)  # using frobenius norm of P
-                cost += + r * ca.dot(U[:,k], U[:,k])
+                cost += r * ca.dot(U[:,k], U[:,k])
                 # add regularization term to reward smooth control inputs
                 cost += 0.1 * ca.mtimes([(U[:, k] - U[:, k-1]).T, (U[:, k] - U[:, k-1])])
             return cost

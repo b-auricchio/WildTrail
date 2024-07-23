@@ -7,9 +7,6 @@ sys.path.append('../')
 def plot_covariance_ellipse(x, P, fc='g', alpha=0.2, std=1, ax=None):
     """Plot covariance ellipse at point x with covariance matrix P.
     """
-    if ax is None:
-        ax = plt.gca()
-
     P = P[:2,:2]
     U, s, _ = np.linalg.svd(P)
     orientation = np.arctan2(U[1, 0], U[0, 0])
@@ -19,15 +16,15 @@ def plot_covariance_ellipse(x, P, fc='g', alpha=0.2, std=1, ax=None):
                   angle=np.rad2deg(orientation),
                   facecolor=fc, alpha=alpha)
     ell.set_clip_box(ax.bbox)
-    ell.set_alpha(alpha)
     ax.add_artist(ell)
 
 import matplotlib.animation as animation
 
 class Animator:
-    def __init__(self, logger):
+    def __init__(self, logger, constraints=None):
         self.track, self.drone_state, self.kf_state, self.kf_cov, self.predictions, self.ctrl = logger.to_numpy()
         self.fig, self.ax = plt.subplots(1, 1, figsize=(8, 6))
+        self.constraints = constraints
 
         self.dt = logger.dt
 
@@ -54,6 +51,10 @@ class Animator:
         for i in range(t):
             if i % 10 == 0:
                 plot_covariance_ellipse(self.kf_state[i][0:2], self.kf_cov[i][0:2,0:2], fc='g', alpha=0.2, std=3, ax=self.ax)
+
+        if self.constraints is not None:
+            for constraint in self.constraints:
+                constraint.plot(self.ax)
 
         # set labels
         self.ax.set_xlabel('x [m]')
