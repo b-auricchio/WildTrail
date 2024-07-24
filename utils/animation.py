@@ -31,7 +31,7 @@ class Animator:
     def plot(self, t):
         # plot track
         self.ax.clear()
-        self.ax.plot(self.track[:t+1, 0], self.track[:t+1, 1], 'grey', linestyle="-", label='Target Track', alpha=0.5, linewidth=1)
+        self.ax.plot(self.track[:t+1, 0], self.track[:t+1, 1], 'grey', linestyle="-", label='Target Track', linewidth=2)
 
         # plot position of the drone
         self.ax.plot(self.drone_state[:t+1, 0], self.drone_state[:t+1, 1], 'k--', label='Drone State')

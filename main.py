@@ -44,7 +44,7 @@ constraints = [CylinderConstraint(50, 100, 0),
                CylinderConstraint(60, 400, -100),
                CylinderConstraint(35, 200, 0)]  # constraints
 
-constraints = None
+# constraints = None
 
 # get animal's track
 track = [target.update_states(dt, Q_model) for _ in range(N)]
